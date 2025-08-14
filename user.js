@@ -353,7 +353,7 @@ app.post("/AddAddress", async (req, res) => {
         return res.send({ success: false, message: "Error Occured" });
     }
 });
-
+console.log("Hello Welcome To Flipkart Website!!!")
 // DELETE /api/address/:id
 app.delete('/api/address/:id', async (req, res) => {
     const { id } = req.params;
