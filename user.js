@@ -7,7 +7,7 @@ const path = require('path'); // ✅ ADD THIS LINE
 dotenv.config()
 
 // Connection URL
-const url = 'mongodb://localhost:27017/';
+const url = process.env.MONGO_URI;
 const client = new MongoClient(url);
 
 // Database Name
