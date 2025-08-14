@@ -1,44 +1,72 @@
 const { MongoClient } = require('mongodb');
-const express = require('express')
-const bodyparser = require('body-parser')
-const dotenv = require('dotenv')
-const cors = require('cors')
-const path = require('path'); // ✅ ADD THIS LINE
-dotenv.config()
+const express = require('express'); // Express framework
+const bodyParser = require('body-parser'); // JSON body parsing middleware
+const dotenv = require('dotenv'); // For environment variables
+const cors = require('cors'); // For Cross-Origin Resource Sharing
+const path = require('path'); // Node.js built-in module for path manipulation
 
-// Connection URL
+// ✅ 1. dotenv.config() को तुरंत कॉल करें ताकि ENV वेरिएबल्स लोड हो जाएं
+dotenv.config();
+
+// 2. कनेक्शन URL को environment variable से लें
+// सुनिश्चित करें कि आपके Vercel Environment Variables में MONGO_URI सेट है।
 const url = process.env.MONGO_URI;
-const client = new MongoClient(url);
 
-// Database Name
-const dbName = 'Ecommerce';
-const app = express()
-const port = 3000
-app.use(bodyparser.json())
+// अगर MONGO_URI सेट नहीं है तो तुरंत एरर दें और एग्जिट करें
+if (!url) {
+    console.error("❌ Error: MONGO_URI environment variable is not set. Please set it in your .env file or Vercel settings.");
+    process.exit(1); // प्रोसेस को तुरंत बंद करें
+}
+
+const client = new MongoClient(url); // MongoDB क्लाइंट इंस्टेंस
+
+// Database Name (यह आपकी कनेक्शन स्ट्रिंग में भी हो सकता है)
+const dbName = 'Ecommerce'; // आप इसे अपनी URI से भी parse कर सकते हैं या यहाँ hardcode कर सकते हैं
+
+const app = express(); // Express एप्लीकेशन इनिशियलाइज़ करें
+
+// Middlewares
+app.use(bodyParser.json()); // JSON रिक्वेस्ट बॉडी को पार्स करें
 app.use(cors({
-    origin: '*', // You can replace with frontend ngrok URL for more security
-    credentials: true,
+    origin: '*', // For development, you can use '*'
+    // Production में, आपको इसे अपने फ़्रंटएंड URL से बदलना चाहिए, उदा: 'https://your-frontend-app.vercel.app'
+    credentials: true, // अगर आप कुकीज़ या ऑथराइजेशन हेडर भेज रहे हैं
 }));
+
+// ✅ 3. Static फ़ाइलों के लिए (अगर आप 'public' फ़ोल्डर से फ़ाइलें सर्व कर रहे हैं)
+// Vercel Serverless Functions में static फ़ाइलें आमतौर पर अलग से हैंडल होती हैं,
+// लेकिन लोकल डेवलपमेंट या कुछ खास Serverless configs के लिए यह ठीक है।
+app.use('/static', express.static(path.join(__dirname, 'public')));
+app.use(express.json()); // body-parser.json() के बाद यह redundant है अगर सिर्फ JSON है
+module.exports = app;
+// ✅ 4. डेटाबेस कनेक्शन फ़ंक्शन
+// इसे 'middleware' या 'route handler' के रूप में न रखें।
+// इसे एक बार इनिशियलाइज़ेशन के रूप में कॉल करें।
 async function connectToMongo() {
     try {
         await client.connect();
         console.log("✅ Connected to MongoDB!");
 
-        // Start server only after connection
-        app.listen(3000, () => {
-            console.log("🚀 Server running on port 3000");
-        });
+        // MongoDB client को app.locals में स्टोर कर सकते हैं ताकि रूट्स इसे एक्सेस कर सकें
+        // या सीधे client वेरिएबल का उपयोग कर सकते हैं अगर वह global scope में है।
+        // app.locals.db = client.db(dbName);
+
+        // ✅ Vercel Serverless Functions के लिए, app.listen() की आवश्यकता नहीं है
+        // लोकल डेवलपमेंट के लिए आप इसे यहाँ रख सकते हैं:
+        if (process.env.NODE_ENV !== 'production') { // Check if not in production
+            app.listen(3000, () => {
+                console.log("🚀 Local Server running on port 3000");
+            });
+        }
 
     } catch (e) {
         console.error("❌ Failed to connect to MongoDB:", e);
-        process.exit(1);
+        process.exit(1); // कनेक्शन फेल होने पर प्रोसेस को बंद करें
     }
 }
 
+// ✅ 5. MongoDB से कनेक्ट करें
 connectToMongo();
-app.use(express.json());
-app.use('/static', express.static(path.join(__dirname, 'public')));
-
 
 
 // ✅ This route returns the full user object by username
@@ -428,6 +456,9 @@ app.post('/checkout', async (req, res) => {
 app.all('*', (req, res) => {
     res.status(404).json({ success: false, message: `Route ${req.method} ${req.originalUrl} not found` });
 });
-app.listen(port, '0.0.0.0', () => {
+
+// ✅ 6. App Listen - Vercel Serverless Functions में यह इग्नोर हो जाएगा
+const port = process.env.PORT || 3000;
+app.listen(port, '0.0.0.0', () => { // '0.0.0.0' लोकल मशीन पर सभी इंटरफेस पर सुनता है
     console.log(`Example app listening on port ${port}`);
 });
